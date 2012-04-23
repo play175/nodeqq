@@ -137,7 +137,7 @@ function getFriends(){
             console.log('\n在线好友'+Friends.length+'个：\n');
             for (var i = 0; i < Friends.length; i++) {
                 var qinfo = Friends[i];
-                console.log(i+1 + ':'+qinfo.name);//+ '\t\t['+qinfo.qq+']');
+                console.log(i+1 + ':'+qinfo.name + '\t\t['+qinfo.qq+']');
             }
             settty();
     });
