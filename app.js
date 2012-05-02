@@ -1,12 +1,8 @@
-
 var qqinfo = {
     loginType:2,//1：不登录 2：隐身登录 3：在线登录
     qq:153384209,//qq号
     pwd:'abc123'//qq密码
 };
-
-
-
 
 var http = require('http');
 var url = require('url');
@@ -20,31 +16,9 @@ function post(pUrl,headers,body,onResponse) {
     var options = args;
     if(headers)options.headers = headers;
     options.method = 'POST';
+    if(!body)options.method = 'GET';
     //console.log(options);
-    http.request(options, function(res) {
-           if(res.statusCode!=200){
-               onResponse(res);
-               return;
-          }
-          var body = '';
-          res.on('data', function (chunk) {
-            body+=chunk;
-          });
-          res.on('end', function () {
-            res.body = body;
-            onResponse(res);
-          });
-    }).end(qs.stringify(body));
-}
-
-function get(pUrl,headers,onResponse) {
-    var args = url.parse(pUrl);
-    //console.log(args);
-    var options = args;
-    if(headers)options.headers = headers;
-    options.method = 'GET';
-    //console.log("Got response: " + res.statusCode);;
-    http.request(options, function(res) {
+    var req = http.request(options, function(res) {
          if(res.statusCode!=200){
                onResponse(res);
                return;
@@ -58,7 +32,6 @@ function get(pUrl,headers,onResponse) {
                 var tmp = new Buffer(ex * 1024*10);
                 body.copy(tmp);
                 body = tmp;
-                //console.log('size'+size);
             }
             chunk.copy(body,size - chunk.length);
           });
@@ -69,27 +42,23 @@ function get(pUrl,headers,onResponse) {
           });
     }).on('error', function(e) {
       console.log("Got error: " + e.message);
-    }).end();
+    });
+    if(body){
+        req.end(qs.stringify(body));
+    }else{
+        req.end();
+    }
 }
 
-
-
-
-
-
-
-
-
-
-
-
+function get(pUrl,headers,onResponse) {
+    post(pUrl,headers,null,onResponse);
+}
 
 var userAgend = 'Mozilla/5.0 (Linux; U; Android 3.0; en-us; Xoom Build/HRI39) AppleWebKit/534.13 (KHTML, like Gecko) Version/4.0 Safari/534.13';
+var PostHead = {'User-Agent' : userAgend , 'Content-Type' : 'application/x-www-form-urlencoded'};
 
 console.log('正在登录QQ：' + qqinfo.qq);
-post('http://pt.3g.qq.com/handleLogin?a=b',{'User-Agent':userAgend
-        ,'Content-Type' : 'application/x-www-form-urlencoded'
-    }
+post('http://pt.3g.qq.com/handleLogin?a=b',PostHead
     ,qqinfo
     ,function(res){
         if(res.statusCode == 302){
@@ -121,7 +90,7 @@ post('http://pt.3g.qq.com/handleLogin?a=b',{'User-Agent':userAgend
             });
             return;
         }
-        console.log(res.body);
+        console.log("登录失败\\n"+res.body);
     }
 );
 
@@ -133,24 +102,32 @@ var Friends = [];
 function getFriends(){
     Friends = [];
     console.log('正在获取好友列表...');
-    getFriendsPage(1,function(){        
-            console.log('\n在线好友'+Friends.length+'个：\n');
-            for (var i = 0; i < Friends.length; i++) {
-                var qinfo = Friends[i];
-                console.log(i+1 + ':'+qinfo.name + '\t\t['+qinfo.qq+']');
-            }
-            settty();
+    
+    //先访问一下,避免转向登录页面
+    var chatmain = 'http://q16.3g.qq.com/g/s?sid=$SID&aid=nqqchatMain&p=$Page';
+    chatmain = chatmain.replace('$SID',Vdata.sid);
+    chatmain = chatmain.replace('$Page',1);
+    get(chatmain,{'User-Agent':userAgend},function(res) {
+        getFriendsPage(1,function(){        
+                console.log('\n在线好友'+Friends.length+'个：\n');
+                for (var i = 0; i < Friends.length; i++) {
+                    var qinfo = Friends[i];
+                    console.log(i+1 + ':'+qinfo.name + '\t\t['+qinfo.qq+']');
+                }
+                settty();
+        });
     });
 }
 
 function getFriendsPage(page,next) {        
-    var chatmain = 'http://q16.3g.qq.com/g/s?sid=$SID&aid=nqqchatMain&on=1&p=$Page';
+    var chatmain = 'http://q16.3g.qq.com/g/s?sid=$SID&aid=nqqchatMain&p=$Page';
     chatmain = chatmain.replace('$SID',Vdata.sid);
     chatmain = chatmain.replace('$Page',page);
+    //console.log(chatmain);return;
     get(chatmain,{'User-Agent':userAgend},function(res) {
         //console.log(res.body.toString());return;
-        var body = res.body.toString();
-        var regex = new RegExp('u=(\\d+?)&.+?class="name.*?".*?>(.[^<>]*?)</span>','ig');
+        var body = res.body.toString().replace(/\s+/ig,'');
+        var regex = /u=(\d+).+?class="name.*?".*?>(.[^<>]*?)<\/span>/ig;
         while(regex.exec(body)){
             var qinfo = {qq:RegExp.$1,name:RegExp.$2.replace(/^ +?/,'')};
             Friends.push(qinfo);
@@ -168,6 +145,34 @@ function getFriendsPage(page,next) {
               next();  
         }
     });
+}
+
+
+function sendmsg(index,msg) {     
+    var qinfo = Friends[index-1];
+    var form = {
+        'u':qinfo.qq,
+        'msg':msg,
+        'aid':'发送'           
+    };
+    if(!qinfo)return false;
+    var purl = 'http://q32.3g.qq.com/g/s?sid=$SID';
+    purl = purl.replace('$SID',Vdata.sid);
+    console.log(purl);
+    console.log(form);
+    post(purl,{'User-Agent':userAgend
+        ,'Content-Type' : 'application/x-www-form-urlencoded'
+    }
+    ,form
+    ,function(res){
+        var body = res.body.toString();
+        if(body.indexOf('重新登录')>=0){
+            console.log('发送失败');
+            return;
+        }
+        console.log(body);    
+    });
+    return true;
 }
 
 var tty;
@@ -193,6 +198,12 @@ function settty() {
             process.exit(0);
             break;
         default:
+          var regexp = new RegExp('send +(\\d+) +?(.+)','ig');
+          if(regexp.exec(line)){
+              if(sendmsg(RegExp.$1,RegExp.$2)){
+                   return;
+              }
+          }
           console.log('抱歉，我不能理解您的命令 `' + line.trim() + '`');
           break;
       }
