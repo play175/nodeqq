@@ -36,8 +36,9 @@ function post(pUrl,headers,body,onResponse) {
             chunk.copy(body,size - chunk.length);
           });
           res.on('end', function () {
-            res.body = new Buffer(size);
-            body.copy(res.body);
+            res.data = new Buffer(size);
+            body.copy(res.data);
+            res.body = res.data.toString();
             onResponse(res);
           });
     }).on('error', function(e) {
@@ -80,7 +81,7 @@ post('http://pt.3g.qq.com/handleLogin?a=b',PostHead
             regex.exec(res.body);
             var imgurl = RegExp.$1;
             get(imgurl,null,function(res) {
-                    fs.writeFile('verify.gif', res.body,0,res.body.length,0, function (err) {
+                    fs.writeFile('verify.gif', res.data,0,res.data.length,0, function (err) {
                         console.log('请输入目录下图片：verify.gif 的文字：(TODO:未完成！！)');                        
                         /*var tty = rl.createInterface(process.stdin, process.stdout, null);
                         tty.question('请输入目录下图片：verify.gif 的文字：', function(answer) {
