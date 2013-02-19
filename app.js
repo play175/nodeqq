@@ -1,6 +1,6 @@
 var qqinfo = {
     loginType:2,//1：不登录 2：隐身登录 3：在线登录
-    qq:153384209,//qq号
+    qq:123456789,//qq号
     pwd:'abc123'//qq密码
 };
 
@@ -17,6 +17,12 @@ function post(pUrl,headers,body,onResponse) {
     if(headers)options.headers = headers;
     options.method = 'POST';
     if(!body)options.method = 'GET';
+    
+    if(body){
+        body = qs.stringify(body);
+        options.headers['Content-Length'] = Buffer.byteLength(body);
+    }
+
     //console.log(options);
     var req = http.request(options, function(res) {
          if(res.statusCode!=200){
@@ -45,10 +51,9 @@ function post(pUrl,headers,body,onResponse) {
       console.log("Got error: " + e.message);
     });
     if(body){
-        req.end(qs.stringify(body));
-    }else{
-        req.end();
+        req.write(body);
     }
+    req.end();
 }
 
 function get(pUrl,headers,onResponse) {
@@ -109,6 +114,14 @@ function getFriends(){
     chatmain = chatmain.replace('$SID',Vdata.sid);
     chatmain = chatmain.replace('$Page',1);
     get(chatmain,{'User-Agent':userAgend},function(res) {
+         var body = res.body.toString().replace(/\s+/ig,'');
+         //获取消息数量
+        var regex = /聊天"\/>\((\d)+\)<\/a>/ig;
+        if(regex.exec(body)) {
+            var num = RegExp.$1;
+            console.log('\n您有 '+num+' 条新消息，输入命令 m 查看');
+        }
+
         getFriendsPage(1,function(){        
                 console.log('\n在线好友'+Friends.length+'个：\n');
                 for (var i = 0; i < Friends.length; i++) {
@@ -159,19 +172,19 @@ function sendmsg(index,msg) {
     if(!qinfo)return false;
     var purl = 'http://q32.3g.qq.com/g/s?sid=$SID';
     purl = purl.replace('$SID',Vdata.sid);
-    console.log(purl);
-    console.log(form);
+    //console.log(purl);
+    //console.log(form);
     post(purl,{'User-Agent':userAgend
         ,'Content-Type' : 'application/x-www-form-urlencoded'
     }
     ,form
     ,function(res){
         var body = res.body.toString();
-        if(body.indexOf('重新登录')>=0){
+        if(body.indexOf('重新登录')>=0 && body.indexOf('书签可能有误')>=0){
             console.log('发送失败');
             return;
         }
-        console.log(body);    
+        //console.log(body);    
     });
     return true;
 }
@@ -184,22 +197,20 @@ function settty() {
     tty.on('line', function(line) {
       switch(line.toLowerCase().trim()) {
         case '?':
-        case 'help':
             console.log('命令列表：');
-            console.log('q/quit：退出');
-            console.log('o/online：在线列表');
+            console.log('q：退出');
+            console.log('o：在线列表');
+            console.log('s [好友列表序号] [内容]：发送消息');
             break;
         case 'o':
-        case 'online':
             getFriends();
             break;
         case 'q':
-        case 'quit':
             tty.close();
             process.exit(0);
             break;
         default:
-          var regexp = new RegExp('send +(\\d+) +?(.+)','ig');
+          var regexp = new RegExp('s +(\\d+) +?(.+)','ig');
           if(regexp.exec(line)){
               if(sendmsg(RegExp.$1,RegExp.$2)){
                    return;
@@ -212,7 +223,7 @@ function settty() {
       console.log('再见!');
       process.exit(0);
     });
-    console.log('输入?/help获得命令列表');
+    console.log('输入?获得命令列表');
     tty.setPrompt(prefix, prefix.length);
     tty.prompt();
 }
